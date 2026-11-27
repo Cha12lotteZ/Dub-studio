@@ -15,14 +15,12 @@ WORKDIR /home/user/app
 
 # CPU-only torch keeps the image several GB smaller than the default CUDA build.
 RUN pip install --no-cache-dir --user torch torchaudio --index-url https://download.pytorch.org/whl/cpu
-COPY --chown=user requirements.txt requirements-ai.txt ./
-RUN pip install --no-cache-dir --user -r requirements.txt -r requirements-ai.txt
+COPY --chown=user . .
+RUN pip install --no-cache-dir --user ".[ai]"
 
 # Download the Thai transcription, Thai TTS and voice-separation models at build
 # time, so the first click in the app does not wait for a 1 GB download.
-COPY --chown=user scripts/preload_models.py scripts/
 RUN python scripts/preload_models.py
 
-COPY --chown=user . .
 EXPOSE 7860
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7860"]
+CMD ["dubstudio", "serve", "--host", "0.0.0.0", "--port", "7860", "--no-browser"]

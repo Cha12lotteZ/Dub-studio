@@ -15,10 +15,24 @@ class MediaError(RuntimeError):
     pass
 
 
+def ffmpeg_exe() -> str | None:
+    """System ffmpeg if installed, else the copy bundled by imageio-ffmpeg."""
+    found = shutil.which("ffmpeg")
+    if found:
+        return found
+    try:
+        import imageio_ffmpeg
+
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        return None
+
+
 def _ffmpeg(*args: str) -> None:
-    if not shutil.which("ffmpeg"):
+    exe = ffmpeg_exe()
+    if not exe:
         raise MediaError("ไม่พบ ffmpeg กรุณาติดตั้งก่อน (ดู README)")
-    proc = subprocess.run(["ffmpeg", "-y", "-loglevel", "error", *args], capture_output=True, text=True)
+    proc = subprocess.run([exe, "-y", "-loglevel", "error", *args], capture_output=True, text=True)
     if proc.returncode != 0:
         raise MediaError(proc.stderr.strip() or "ffmpeg ทำงานไม่สำเร็จ")
 
@@ -74,11 +88,15 @@ def mux(video: Path, audio_wav: Path, out: Path) -> Path:
 
 
 def duration(path: Path) -> float:
-    if not shutil.which("ffprobe"):
-        raise MediaError("ไม่พบ ffprobe")
-    out = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path)],
-                         capture_output=True, text=True)
-    try:
-        return float(out.stdout.strip())
-    except ValueError as e:
-        raise MediaError("อ่านความยาววิดีโอไม่ได้") from e
+    """Media length in seconds, read from ffmpeg's own report (no ffprobe needed)."""
+    import re
+
+    exe = ffmpeg_exe()
+    if not exe:
+        raise MediaError("ไม่พบ ffmpeg")
+    out = subprocess.run([exe, "-hide_banner", "-i", str(path)], capture_output=True, text=True).stderr
+    m = re.search(r"Duration: (\d+):(\d+):(\d+(?:\.\d+)?)", out)
+    if not m:
+        raise MediaError("อ่านความยาววิดีโอไม่ได้")
+    h, mi, se = m.groups()
+    return int(h) * 3600 + int(mi) * 60 + float(se)
