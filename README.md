@@ -34,7 +34,18 @@ pip install -r requirements-ai.txt
 | faster-whisper | ถอดบทจากวิดีโอ | วิดีโอ 1 นาที ใช้เวลาประมาณ 1 นาที |
 | Demucs | แยกเสียงพูดออกจากดนตรีและเอฟเฟกต์ | ประมาณเท่าความยาววิดีโอ |
 | MMS-TTS ภาษาไทย | พิมพ์บทให้พูด (ใช้ได้เฉพาะงานไม่เชิงพาณิชย์ ตามสัญญาอนุญาต CC-BY-NC 4.0) | ไม่กี่วินาทีต่อประโยค |
-| rvc-python | แปลงเป็นเสียงจากโมเดลที่เทรนไว้ | ไม่กี่วินาทีต่อประโยค |
+
+ครั้งแรกที่ใช้ แต่ละส่วนจะดาวน์โหลดโมเดลจาก Hugging Face และ Meta อัตโนมัติ (รวมประมาณ 1 GB)
+
+## แปลงเสียงด้วยโมเดล
+
+การแปลงเสียงด้วยโมเดล RVC ใช้ [Applio](https://github.com/IAHispano/Applio) 3.7.2 ซึ่งติดตั้งแยกจากแอปนี้ เพราะต้องใช้แพ็กเกจคนละเวอร์ชัน
+
+1. ติดตั้ง Applio ตามวิธีในหน้า GitHub ของ Applio (Windows ใช้ `run-install.bat`)
+2. ตั้งค่าตัวแปร `DUB_APPLIO_DIR` ให้ชี้ไปที่โฟลเดอร์ Applio ก่อนเปิดแอป เช่น
+   - Windows: `set DUB_APPLIO_DIR=C:\Applio`
+   - Mac/Linux: `export DUB_APPLIO_DIR=~/Applio`
+3. ถ้า Python ของ Applio ไม่ได้อยู่ใน `.venv` ของมัน ให้ตั้ง `DUB_APPLIO_PYTHON` เป็น path ของ Python นั้น
 
 ## สอนเสียงของคุณ
 

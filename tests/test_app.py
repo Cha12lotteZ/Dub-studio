@@ -124,3 +124,38 @@ def test_export_with_video(client, tmp_path):
 def test_file_route_blocks_path_traversal(client):
     p = client.post("/api/projects", data={"name": "x"}).json()
     assert client.get(f"/api/projects/{p['id']}/files/../../projects").status_code == 404
+
+
+FAKE_APPLIO = '''
+import shutil, sys
+a = sys.argv
+assert a[1] == "infer"
+opt = {a[i]: a[i + 1] for i in range(2, len(a) - 1, 2)}
+assert opt["--f0-method"] == "rmvpe" and opt["--pth-path"].endswith(".pth")
+open(opt["--output-path"] + ".args", "w").write(" ".join(a[1:]))
+shutil.copy(opt["--input-path"], opt["--output-path"])
+'''
+
+
+@needs_ffmpeg
+def test_voice_model_runs_through_applio(client, tmp_path, monkeypatch):
+    applio = tmp_path / "Applio"
+    applio.mkdir()
+    (applio / "core.py").write_text(FAKE_APPLIO)
+    monkeypatch.setenv("DUB_APPLIO_DIR", str(applio))
+    assert client.get("/api/catalog").json()["ai"]["voice_model"] is True
+
+    r = client.post("/api/models", data={"name": "เสียงฉัน-v1"}, files={"pth": ("m.pth", b"x"), "index": ("m.index", b"y")})
+    model_id = r.json()["models"][0]["id"]
+    p = client.post("/api/projects", data={"name": "vc"}).json()
+    ln = client.post(f"/api/projects/{p['id']}/lines", json={"start": 0}).json()
+    client.patch(f"/api/projects/{p['id']}/lines/{ln['id']}", json={"model": model_id, "settings": {"character": "kid"}})
+    r = client.post(f"/api/projects/{p['id']}/lines/{ln['id']}/take", files={"audio": ("t.wav", wav_bytes(), "audio/wav")})
+    assert r.status_code == 200, r.text
+    args = next((tmp_path / "projects" / p["id"] / "takes").glob("*_vc.wav.args")).read_text()
+    assert "--pitch 5" in args and "model.index" in args  # kid pitch goes to the model, not applied twice
+
+
+def test_voice_model_missing_applio_is_reported(client, monkeypatch):
+    monkeypatch.delenv("DUB_APPLIO_DIR", raising=False)
+    assert client.get("/api/catalog").json()["ai"]["voice_model"] is False

@@ -31,7 +31,7 @@ function renderCatalog() {
   const ms = $("modelSelect");
   ms.innerHTML = `<option value="">ไม่ใช้โมเดล (ใช้เสียงที่อัดตรงๆ)</option>` +
     c.models.map((m) => `<option value="${m.id}">${m.name}</option>`).join("");
-  $("modelNote").textContent = !c.ai.voice_model ? "ยังไม่ได้ติดตั้งส่วนโมเดลเสียง (requirements-ai.txt) ตอนนี้ใช้ได้เฉพาะเอฟเฟกต์"
+  $("modelNote").textContent = !c.ai.voice_model ? "ยังไม่ได้ตั้งค่า Applio สำหรับแปลงเสียง (ดู README) ตอนนี้ใช้ได้เฉพาะเอฟเฟกต์"
     : c.models.length ? "โมเดลจะเปลี่ยนเนื้อเสียง แล้วตัวละคร อารมณ์ บรรยากาศจะปรับต่อ" : "ยังไม่มีโมเดล อัปโหลดได้ที่ช่อง \"สอนเสียงของคุณ\"";
   $("datasetNote").textContent = `เก็บไว้แล้ว ${c.dataset.takes} เทค (${c.dataset.minutes} นาที) แนะนำอย่างน้อย 10 นาทีสำหรับเทรนรอบแรก`;
   $("separateBtn").disabled = !c.ai.separate;
