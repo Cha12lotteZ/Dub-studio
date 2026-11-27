@@ -38,7 +38,7 @@ function renderCatalog() {
   $("transcribeBtn").disabled = !c.ai.transcribe;
   $("ttsBtn").disabled = !c.ai.tts;
   const missing = [!c.ai.separate && "แยกเสียง", !c.ai.transcribe && "ถอดบท", !c.ai.tts && "พิมพ์บทให้พูด"].filter(Boolean);
-  $("aiStatus").textContent = missing.length ? `ยังใช้ไม่ได้: ${missing.join(", ")} (ติดตั้ง requirements-ai.txt)` : "";
+  $("aiStatus").textContent = missing.length ? `ยังใช้ไม่ได้: ${missing.join(", ")} (รัน install อีกครั้งแล้วเลือกติดตั้งส่วน AI)` : "";
   if (!c.ai.ffmpeg) $("aiStatus").textContent = "ไม่พบ ffmpeg ในเครื่อง กรุณาติดตั้งก่อน";
 }
 

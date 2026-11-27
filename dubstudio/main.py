@@ -1,4 +1,4 @@
-"""Dub Studio web server. Run: uvicorn app.main:app --reload  then open http://localhost:8000"""
+"""Dub Studio web server. Run `dubstudio serve` (or uvicorn dubstudio.main:app) and open http://localhost:8000"""
 from __future__ import annotations
 
 import base64
@@ -20,15 +20,28 @@ from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
-from . import ai, effects, media
+from . import ai, core, effects, media
 
-ROOT = Path(__file__).resolve().parent.parent
-DATA = Path(os.environ.get("DUB_DATA", ROOT / "data"))
+PKG = Path(__file__).resolve().parent
+# Projects, voice models and kept takes live outside the code, so updating the
+# app never touches them. Override with DUB_DATA.
+DATA = Path(os.environ.get("DUB_DATA") or Path.home() / "DubStudio")
 PROJECTS, MODELS, DATASET = DATA / "projects", DATA / "models", DATA / "dataset"
 for d in (PROJECTS, MODELS, DATASET):
     d.mkdir(parents=True, exist_ok=True)
 
-app = FastAPI(title="Dub Studio")
+app = FastAPI(
+    title="Dub Studio API",
+    version="0.2.0",
+    description="ใช้ /api/v1/* จากเกมหรือแอปอื่น: ส่งเสียงหรือข้อความเข้าไป ได้ไฟล์ WAV กลับมา "
+                "(/api/projects/* เป็น API ภายในของหน้าเว็บ อาจเปลี่ยนได้)",
+)
+if os.environ.get("DUB_CORS_ORIGINS"):
+    # Only needed when a web page on another origin calls this API from the browser.
+    from fastapi.middleware.cors import CORSMiddleware
+
+    app.add_middleware(CORSMiddleware, allow_origins=os.environ["DUB_CORS_ORIGINS"].split(","),
+                       allow_methods=["*"], allow_headers=["*"])
 
 
 @app.middleware("http")
@@ -401,4 +414,78 @@ def dataset_zip():
                              headers={"Content-Disposition": "attachment; filename=my-voice-dataset.zip"})
 
 
-app.mount("/", StaticFiles(directory=ROOT / "web", html=True), name="web")
+# ---------- public API v1 (stable, for games and other apps) ----------
+
+def _wav_response(audio, sr: int) -> Response:
+    buf = io.BytesIO()
+    import soundfile as sf
+
+    sf.write(buf, audio.T, sr, format="WAV", subtype="PCM_16")
+    return Response(buf.getvalue(), media_type="audio/wav")
+
+
+def _v1_error(e: Exception) -> HTTPException:
+    if isinstance(e, HTTPException):
+        return e
+    return _err(e)
+
+
+@app.get("/api/v1/presets", tags=["v1"], summary="รายชื่อตัวละคร อารมณ์ บรรยากาศ และโมเดลเสียง")
+def v1_presets():
+    return {**effects.catalog(), "models": core.models()}
+
+
+@app.post("/api/v1/process", tags=["v1"], summary="แปลงไฟล์เสียงเป็นเสียงตัวละคร ได้ WAV กลับมา",
+          response_class=Response, responses={200: {"content": {"audio/wav": {}}}})
+def v1_process(audio: UploadFile = File(..., description="ไฟล์เสียงหรือวิดีโอ (wav, mp3, ogg, webm, mp4...)"),
+               character: str = Form("me"), mood: str = Form("normal"), atmosphere: str = Form("none"),
+               mix: float = Form(0.6), pitch: float | None = Form(None), model: str | None = Form(None)):
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        src = Path(tmp) / f"in{Path(audio.filename or '').suffix or '.bin'}"
+        with src.open("wb") as f:
+            shutil.copyfileobj(audio.file, f)
+        try:
+            out, sr = core.process(src, character=character, mood=mood, atmosphere=atmosphere, mix=mix,
+                                   pitch=pitch, model=model or None)
+        except Exception as e:
+            raise _v1_error(e)
+    return _wav_response(out, sr)
+
+
+class SpeakIn(BaseModel):
+    text: str
+    character: str = "me"
+    mood: str = "normal"
+    atmosphere: str = "none"
+    mix: float = 0.6
+    pitch: float | None = None
+    model: str | None = None
+
+
+@app.post("/api/v1/speak", tags=["v1"], summary="พิมพ์บทภาษาไทยให้พูดเป็นเสียงตัวละคร ได้ WAV กลับมา",
+          response_class=Response, responses={200: {"content": {"audio/wav": {}}}})
+def v1_speak(body: SpeakIn):
+    try:
+        out, sr = core.speak(**body.model_dump())
+    except Exception as e:
+        raise _v1_error(e)
+    return _wav_response(out, sr)
+
+
+@app.post("/api/v1/transcribe", tags=["v1"], summary="ถอดบทพร้อมเวลาจากไฟล์เสียงหรือวิดีโอ")
+def v1_transcribe(audio: UploadFile = File(...), language: str = Form("th")):
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        src = Path(tmp) / f"in{Path(audio.filename or '').suffix or '.bin'}"
+        with src.open("wb") as f:
+            shutil.copyfileobj(audio.file, f)
+        try:
+            return {"lines": core.transcribe(src, language)}
+        except Exception as e:
+            raise _v1_error(e)
+
+
+app.mount("/", StaticFiles(directory=PKG / "web", html=True), name="web")

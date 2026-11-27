@@ -1,5 +1,5 @@
 """Optional AI steps. Each one imports its library lazily, so the app still runs
-(with effects, recording and export) before requirements-ai.txt is installed.
+(with effects, recording and export) before the [ai] extra is installed.
 
 All of them run on CPU. Training happens on Colab/Kaggle (see notebooks/).
 """
@@ -21,7 +21,7 @@ def _need(module: str, pip_name: str):
     try:
         return __import__(module)
     except ImportError as e:
-        raise NotInstalled(f"ยังไม่ได้ติดตั้ง {pip_name} (pip install -r requirements-ai.txt)") from e
+        raise NotInstalled(f"ยังไม่ได้ติดตั้ง {pip_name} (pip install dubstudio[ai] หรือรัน install อีกครั้งแล้วเลือกติดตั้งส่วน AI)") from e
 
 
 def status() -> dict:
@@ -144,4 +144,6 @@ def voice_model_ready() -> bool:
 
 
 def ffmpeg_ok() -> bool:
-    return shutil.which("ffmpeg") is not None
+    from .media import ffmpeg_exe
+
+    return ffmpeg_exe() is not None
