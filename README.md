@@ -23,7 +23,7 @@
 2. สร้าง token แบบ **Write** ที่ [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)
 3. ใน GitHub repo นี้ ไปที่ **Settings → Secrets and variables → Actions**
    - แท็บ Secrets: เพิ่ม `HF_TOKEN` = token จากข้อ 2 และ `DUB_PASSWORD` = รหัสผ่านที่เว็บจะถาม (ชื่อผู้ใช้ใส่อะไรก็ได้)
-   - แท็บ Variables: เพิ่ม `HF_SPACE` = `ชื่อผู้ใช้-huggingface/dub-studio`
+   - (ไม่บังคับ) แท็บ Variables: `HF_SPACE` ถ้าต้องการชื่อ Space อื่น ค่าเริ่มต้นคือ `ชื่อผู้ใช้ของคุณ/dub-studio`
 4. แท็บ **Actions → Deploy to Hugging Face Space → Run workflow** ครั้งแรกจะสร้าง Space แบบ Private ให้เอง หลังจากนั้นทุกครั้งที่มีโค้ดใหม่เข้า `main` จะส่งขึ้น Space ให้อัตโนมัติ (build ครั้งแรกประมาณ 15–20 นาที)
 
 ถ้าเปลี่ยน Space เป็น Public โดยไม่ตั้ง `DUB_PASSWORD` ใครมีลิงก์ก็เห็นโปรเจกต์และเสียงที่เก็บไว้ทั้งหมด

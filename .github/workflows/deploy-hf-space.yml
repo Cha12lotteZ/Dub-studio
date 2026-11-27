@@ -3,7 +3,7 @@
 # Setup (once), in GitHub: Settings -> Secrets and variables -> Actions
 #   secret   HF_TOKEN      a Hugging Face "Write" token
 #   secret   DUB_PASSWORD  (optional) password the web page asks for
-#   variable HF_SPACE      your-hf-username/dub-studio
+#   variable HF_SPACE      (optional) defaults to <your-hf-username>/dub-studio
 name: Deploy to Hugging Face Space
 
 on:
@@ -14,34 +14,39 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    if: ${{ vars.HF_SPACE != '' }}
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
     steps:
+      - name: Skip when no token is set
+        if: env.HF_TOKEN == ''
+        run: echo "::notice::Skipping deploy. Add the HF_TOKEN repository secret to deploy to Hugging Face."
       - uses: actions/checkout@v4
+        if: env.HF_TOKEN != ''
       - uses: actions/setup-python@v5
+        if: env.HF_TOKEN != ''
         with:
           python-version: "3.11"
       - name: Create the Space if needed and set its password
+        if: env.HF_TOKEN != ''
         env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_SPACE: ${{ vars.HF_SPACE }}
           DUB_PASSWORD: ${{ secrets.DUB_PASSWORD }}
         run: |
-          if [ -z "$HF_TOKEN" ]; then echo "::error::Add the HF_TOKEN repository secret first"; exit 1; fi
           pip install -q "huggingface_hub>=0.24"
           python - <<'PY'
           import os
           from huggingface_hub import HfApi
           api = HfApi(token=os.environ["HF_TOKEN"])
-          space = os.environ["HF_SPACE"]
+          space = os.environ.get("HF_SPACE") or f"{api.whoami()['name']}/dub-studio"
+          with open(os.environ["GITHUB_ENV"], "a") as f:
+              f.write(f"HF_SPACE={space}\n")
           api.create_repo(space, repo_type="space", space_sdk="docker", private=True, exist_ok=True)
           if os.environ.get("DUB_PASSWORD"):
               api.add_space_secret(space, "DUB_PASSWORD", os.environ["DUB_PASSWORD"])
           print("Space ready:", f"https://huggingface.co/spaces/{space}")
           PY
       - name: Push the app to the Space
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-          HF_SPACE: ${{ vars.HF_SPACE }}
+        if: env.HF_TOKEN != ''
         run: |
           set -euo pipefail
           HF_USER="${HF_SPACE%%/*}"
