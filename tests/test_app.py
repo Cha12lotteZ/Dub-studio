@@ -159,3 +159,12 @@ def test_voice_model_runs_through_applio(client, tmp_path, monkeypatch):
 def test_voice_model_missing_applio_is_reported(client, monkeypatch):
     monkeypatch.delenv("DUB_APPLIO_DIR", raising=False)
     assert client.get("/api/catalog").json()["ai"]["voice_model"] is False
+
+
+def test_password_gate(client, monkeypatch):
+    monkeypatch.setenv("DUB_PASSWORD", "ลับมาก")
+    assert client.get("/api/catalog").status_code == 401
+    assert client.get("/api/catalog", auth=("ใครก็ได้", "ผิด")).status_code == 401
+    assert client.get("/api/catalog", auth=("me", "ลับมาก")).status_code == 200
+    monkeypatch.delenv("DUB_PASSWORD")
+    assert client.get("/api/catalog").status_code == 200

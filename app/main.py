@@ -1,6 +1,8 @@
 """Dub Studio web server. Run: uvicorn app.main:app --reload  then open http://localhost:8000"""
 from __future__ import annotations
 
+import base64
+import hmac
 import io
 import json
 import os
@@ -12,8 +14,8 @@ import uuid
 import zipfile
 from pathlib import Path
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel
@@ -27,6 +29,26 @@ for d in (PROJECTS, MODELS, DATASET):
     d.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(title="Dub Studio")
+
+
+@app.middleware("http")
+async def password_gate(request: Request, call_next):
+    """Optional login for public hosting (e.g. Hugging Face Spaces): set DUB_PASSWORD.
+    Any username works; only the password is checked."""
+    password = os.environ.get("DUB_PASSWORD")
+    if password:
+        ok = False
+        auth = request.headers.get("authorization", "")
+        if auth.startswith("Basic "):
+            try:
+                given = base64.b64decode(auth[6:]).decode("utf-8").split(":", 1)[1]
+                ok = hmac.compare_digest(given.encode(), password.encode())
+            except (ValueError, IndexError, UnicodeDecodeError):
+                ok = False
+        if not ok:
+            return Response("ต้องใส่รหัสผ่าน", status_code=401,
+                            headers={"WWW-Authenticate": 'Basic realm="Dub Studio", charset="UTF-8"'})
+    return await call_next(request)
 _lock = threading.Lock()
 
 

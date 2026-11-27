@@ -10,7 +10,27 @@
 - **วิดีโอ:** แยกเสียงพูดเดิมออก ถอดบทภาษาไทยอัตโนมัติ แล้วรวมเสียงพากเป็น MP4 (ลดเสียงพื้นหลังตอนมีคนพูดให้เอง)
 - **เรียนรู้ไปเรื่อยๆ:** กด 👍 เก็บเทคที่ชอบ แล้วนำไปเทรนโมเดลเสียงรุ่นใหม่บน GPU ฟรีของ Colab หรือ Kaggle
 
-## ติดตั้ง
+## ใช้งานโดยไม่ต้องติดตั้ง
+
+| ที่ไหน | เหมาะกับ | ข้อจำกัด |
+|---|---|---|
+| [Google Colab](https://colab.research.google.com/github/Cha12lotteZ/dub-studio/blob/main/notebooks/dub_studio_colab.ipynb) | ใช้ครบทุกอย่าง รวมแปลงเป็นเสียงคุณบน GPU ฟรี | เปิดโน้ตบุ๊กใหม่ทุกครั้ง ปิดเองเมื่อไม่ใช้งาน |
+| Hugging Face Spaces | ลิงก์เว็บถาวร เปิดจากมือถือหรือคอมเครื่องไหนก็ได้ | CPU ฟรี จึงช้ากว่า ยังไม่มีการแปลงเสียงด้วยโมเดล งานหายเมื่อ Space รีสตาร์ท |
+
+### ตั้งค่า Hugging Face Spaces (ครั้งเดียว)
+
+1. สมัครบัญชีที่ [huggingface.co/join](https://huggingface.co/join)
+2. สร้าง Space ใหม่ที่ [huggingface.co/new-space](https://huggingface.co/new-space): ตั้งชื่อ `dub-studio` เลือก **Docker → Blank** ฮาร์ดแวร์ **CPU basic (ฟรี)** และแนะนำให้เลือก **Private**
+3. ใน Space ไปที่ **Settings → Variables and secrets → New secret** ตั้งชื่อ `DUB_PASSWORD` แล้วใส่รหัสผ่านที่ต้องการ (เปิดเว็บแล้วจะถามรหัสนี้ ชื่อผู้ใช้ใส่อะไรก็ได้)
+4. สร้าง token ที่ [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) แบบ **Write**
+5. ใน GitHub repo นี้ ไปที่ **Settings → Secrets and variables → Actions**
+   - แท็บ Secrets: เพิ่ม `HF_TOKEN` = token จากข้อ 4
+   - แท็บ Variables: เพิ่ม `HF_SPACE` = `ชื่อผู้ใช้-huggingface/dub-studio`
+6. ไปที่แท็บ **Actions → Deploy to Hugging Face Space → Run workflow** หลังจากนี้ทุกครั้งที่มีโค้ดใหม่เข้า `main` จะส่งขึ้น Space ให้เอง (Space ใช้เวลา build ครั้งแรกประมาณ 15–20 นาที)
+
+ถ้าตั้ง Space เป็น Public โดยไม่ตั้ง `DUB_PASSWORD` ใครมีลิงก์ก็เห็นโปรเจกต์และเสียงที่เก็บไว้ทั้งหมด
+
+## ติดตั้งบนคอมตัวเอง
 
 ต้องมี [Python 3.10+](https://www.python.org/downloads/) และ [ffmpeg](https://ffmpeg.org/download.html)
 

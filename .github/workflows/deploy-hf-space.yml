@@ -1,0 +1,37 @@
+# Copies the app to a Hugging Face Space on every push to main.
+# Setup (once): add a repository secret HF_TOKEN (a Hugging Face "Write" token)
+# and a repository variable HF_SPACE (e.g. your-hf-username/dub-studio).
+name: Deploy to Hugging Face Space
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ vars.HF_SPACE != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Push to the Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_SPACE: ${{ vars.HF_SPACE }}
+        run: |
+          set -euo pipefail
+          if [ -z "$HF_TOKEN" ]; then echo "::error::Add the HF_TOKEN repository secret first"; exit 1; fi
+          HF_USER="${HF_SPACE%%/*}"
+          git clone "https://${HF_USER}:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE}" space
+          # Replace the Space contents with this commit (the Space's README carries its config).
+          find space -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          git archive HEAD | tar -x -C space
+          rm -rf space/.github
+          cp deploy/hf-space/README.md space/README.md
+          cd space
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then echo "No changes"; exit 0; fi
+          git commit -m "Deploy ${GITHUB_SHA::7} from GitHub"
+          git push origin HEAD
