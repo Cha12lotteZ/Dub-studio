@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>สตูดิโอพากเสียง</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anuphan:wght@500;700&family=Noto+Sans+Thai:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>สตูดิโอพากเสียง</h1>
+    <div class="row grow">
+      <label for="projectSelect" class="label">โปรเจกต์</label>
+      <select id="projectSelect"></select>
+      <button class="btn ghost" id="newProjectBtn">+ โปรเจกต์ใหม่</button>
+      <button class="btn ghost danger" id="deleteProjectBtn">ลบ</button>
+    </div>
+  </header>
+
+  <dialog id="newProjectDlg">
+    <form id="newProjectForm" method="dialog" class="stack">
+      <h2>โปรเจกต์ใหม่</h2>
+      <label class="stack"><span class="label">ชื่อ</span><input id="npName" required value="ฉากแรก"></label>
+      <label class="stack"><span class="label">วิดีโอ (ไม่ใส่ก็ได้ จะได้ไฟล์เสียงแทน)</span><input id="npVideo" type="file" accept="video/*"></label>
+      <div class="row"><button class="btn" id="npCreate" value="create">สร้าง</button><button class="btn ghost" value="cancel" formnovalidate>ยกเลิก</button></div>
+      <div class="status" id="npStatus"></div>
+    </form>
+  </dialog>
+
+  <div id="empty" class="panel" hidden>
+    <h2>เริ่มจากสร้างโปรเจกต์</h2>
+    <p class="note">ใส่วิดีโอที่ต้องการพากเสียง แล้วอัดเสียงทีละบรรทัด หรือสร้างโปรเจกต์ไม่มีวิดีโอเพื่อทำเสียงพากอย่างเดียว</p>
+    <div><button class="btn" id="emptyNew">+ โปรเจกต์ใหม่</button></div>
+  </div>
+
+  <div class="grid" id="studio" hidden>
+    <aside class="stack">
+      <section class="panel">
+        <h2>เสียงพื้นฐาน</h2>
+        <label class="label" for="modelSelect">โมเดลเสียง</label>
+        <select id="modelSelect"></select>
+        <p class="note" id="modelNote"></p>
+      </section>
+      <section class="panel">
+        <h2>ตัวละคร</h2>
+        <div class="chips" id="chars"></div>
+        <div class="slider"><label for="pitch">ระดับเสียง</label><input type="range" id="pitch" min="-12" max="12" step="1"><output id="pitchOut"></output></div>
+      </section>
+      <section class="panel">
+        <h2>อารมณ์</h2>
+        <div class="chips" id="moods"></div>
+      </section>
+      <section class="panel">
+        <h2>บรรยากาศ</h2>
+        <div class="chips" id="ambs"></div>
+        <div class="slider"><label for="mix">ความแรง</label><input type="range" id="mix" min="0" max="100" step="5"><output id="mixOut"></output></div>
+      </section>
+      <section class="panel">
+        <h2>สอนเสียงของคุณ</h2>
+        <p class="note" id="datasetNote"></p>
+        <a class="btn ghost" href="/api/dataset.zip" id="datasetZip">ดาวน์โหลดเทคที่เก็บไว้ (.zip)</a>
+        <p class="note">นำไฟล์ zip ไปเทรนใน Colab หรือ Kaggle ตาม <code>notebooks/train_voice.ipynb</code> แล้วอัปโหลดโมเดลกลับมาที่นี่</p>
+        <form id="modelForm" class="stack">
+          <input id="mName" placeholder="ชื่อโมเดล เช่น เสียงฉัน-v2" required>
+          <label class="stack"><span class="label">ไฟล์ .pth</span><input id="mPth" type="file" accept=".pth" required></label>
+          <label class="stack"><span class="label">ไฟล์ .index (ถ้ามี)</span><input id="mIndex" type="file" accept=".index"></label>
+          <button class="btn ghost">อัปโหลดโมเดล</button>
+          <div class="status" id="modelStatus"></div>
+        </form>
+      </section>
+    </aside>
+
+    <main class="stack">
+      <section class="panel">
+        <div class="video" id="videoBox">
+          <video id="video" playsinline></video>
+          <div class="no-video" id="noVideo">โปรเจกต์นี้ไม่มีวิดีโอ</div>
+          <div class="sub-line" id="subLine"></div>
+        </div>
+        <div class="row">
+          <button class="btn ghost" id="separateBtn">แยกเสียงพูดเดิมออก</button>
+          <button class="btn ghost" id="transcribeBtn">ถอดบทอัตโนมัติ</button>
+          <span class="spacer"></span>
+          <label class="row small"><input type="checkbox" id="muteOriginal" checked> ปิดเสียงเดิมตอนฟัง</label>
+        </div>
+        <div class="status" id="aiStatus"></div>
+      </section>
+
+      <section class="panel">
+        <div class="row"><h2>บทพูด</h2><span class="spacer"></span><button class="btn ghost" id="addLineBtn">+ เพิ่มบรรทัดที่เวลาปัจจุบัน</button></div>
+        <div class="lines" id="lines"></div>
+      </section>
+
+      <section class="panel" id="editor" hidden>
+        <div class="row">
+          <label class="stack small"><span class="label">เริ่ม (วินาที)</span><input type="number" step="0.1" min="0" id="lStart"></label>
+          <label class="stack small"><span class="label">จบ</span><input type="number" step="0.1" min="0" id="lEnd"></label>
+          <label class="stack small grow"><span class="label">ใครพูด</span><input id="lWho" placeholder="เช่น ฮีโร่"></label>
+          <button class="btn ghost danger" id="lDelete">ลบบรรทัด</button>
+        </div>
+        <label class="stack"><span class="label">บท</span><textarea id="lText"></textarea></label>
+
+        <div class="tabs" role="tablist">
+          <button class="tab" role="tab" id="tabSpeak" aria-selected="true">พูดเองแล้วแปลงเสียง</button>
+          <button class="tab" role="tab" id="tabType" aria-selected="false">พิมพ์บทให้พูด</button>
+        </div>
+        <div id="paneSpeak" class="row">
+          <button class="btn rec" id="recBtn">● อัดเสียง</button>
+          <label class="btn ghost" for="takeFile">เลือกไฟล์เสียง</label>
+          <input type="file" id="takeFile" accept="audio/*" hidden>
+          <span class="status" id="recStatus"></span>
+        </div>
+        <div id="paneType" class="row" hidden>
+          <button class="btn" id="ttsBtn">สร้างเสียงจากบท</button>
+          <span class="note">ใช้บทในช่องด้านบน แนะนำให้เลือกโมเดลเสียงด้วย ไม่อย่างนั้นจะได้เสียงกลางๆ</span>
+        </div>
+
+        <canvas id="wave" width="1200" height="200" aria-label="รูปคลื่นเสียง"></canvas>
+        <div class="row">
+          <button class="btn" id="playFx" disabled>▶ ฟังพร้อมวิดีโอ</button>
+          <button class="btn ghost" id="playRaw" disabled>ฟังต้นฉบับ</button>
+          <button class="btn ghost" id="stopBtn">หยุด</button>
+          <button class="btn ghost" id="keepBtn" disabled>👍 เก็บเทคนี้ไว้สอนเสียง</button>
+        </div>
+        <div class="status" id="fxStatus"></div>
+      </section>
+
+      <section class="panel">
+        <div class="row"><h2>ส่งออก</h2><span class="spacer"></span><button class="btn" id="exportBtn">รวมเสียงพากทั้งหมด</button></div>
+        <div class="status" id="exportStatus"></div>
+        <div id="exportOut"></div>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
