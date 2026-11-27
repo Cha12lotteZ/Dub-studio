@@ -1,6 +1,3 @@
-# ส่วน AI (ติดตั้งเพิ่มเมื่อพร้อม ทุกตัวรันบน CPU ได้)
-faster-whisper>=1.0      # ถอดบทจากวิดีโอ (รองรับภาษาไทย)
-demucs>=4.0              # แยกเสียงพูดออกจากดนตรีและเอฟเฟกต์
-transformers>=4.40       # MMS-TTS ภาษาไทย สำหรับโหมดพิมพ์บท
-torch>=2.2
-rvc-python>=0.1.5        # แปลงเสียงด้วยโมเดล RVC ที่เทรนจาก Colab/Kaggle
+# Same as `pip install -e .[ai]`. All of it runs on CPU.
+# Voice conversion with RVC models uses Applio, installed separately (see README).
+-e .[ai]

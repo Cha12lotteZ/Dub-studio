@@ -8,7 +8,7 @@ import pytest
 import soundfile as sf
 from fastapi.testclient import TestClient
 
-from app import effects, media
+from dubstudio import effects, media
 
 SR = 44100
 
@@ -66,7 +66,7 @@ needs_ffmpeg = pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg not
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     monkeypatch.setenv("DUB_DATA", str(tmp_path))
-    import app.main as main
+    import dubstudio.main as main
     importlib.reload(main)
     return TestClient(main.app)
 
@@ -124,3 +124,103 @@ def test_export_with_video(client, tmp_path):
 def test_file_route_blocks_path_traversal(client):
     p = client.post("/api/projects", data={"name": "x"}).json()
     assert client.get(f"/api/projects/{p['id']}/files/../../projects").status_code == 404
+
+
+FAKE_APPLIO = '''
+import shutil, sys
+a = sys.argv
+assert a[1] == "infer"
+opt = {a[i]: a[i + 1] for i in range(2, len(a) - 1, 2)}
+assert opt["--f0-method"] == "rmvpe" and opt["--pth-path"].endswith(".pth")
+open(opt["--output-path"] + ".args", "w").write(" ".join(a[1:]))
+shutil.copy(opt["--input-path"], opt["--output-path"])
+'''
+
+
+@needs_ffmpeg
+def test_voice_model_runs_through_applio(client, tmp_path, monkeypatch):
+    applio = tmp_path / "Applio"
+    applio.mkdir()
+    (applio / "core.py").write_text(FAKE_APPLIO)
+    monkeypatch.setenv("DUB_APPLIO_DIR", str(applio))
+    assert client.get("/api/catalog").json()["ai"]["voice_model"] is True
+
+    r = client.post("/api/models", data={"name": "เสียงฉัน-v1"}, files={"pth": ("m.pth", b"x"), "index": ("m.index", b"y")})
+    model_id = r.json()["models"][0]["id"]
+    p = client.post("/api/projects", data={"name": "vc"}).json()
+    ln = client.post(f"/api/projects/{p['id']}/lines", json={"start": 0}).json()
+    client.patch(f"/api/projects/{p['id']}/lines/{ln['id']}", json={"model": model_id, "settings": {"character": "kid"}})
+    r = client.post(f"/api/projects/{p['id']}/lines/{ln['id']}/take", files={"audio": ("t.wav", wav_bytes(), "audio/wav")})
+    assert r.status_code == 200, r.text
+    args = next((tmp_path / "projects" / p["id"] / "takes").glob("*_vc.wav.args")).read_text()
+    assert "--pitch 5" in args and "model.index" in args  # kid pitch goes to the model, not applied twice
+
+
+def test_voice_model_missing_applio_is_reported(client, monkeypatch):
+    monkeypatch.delenv("DUB_APPLIO_DIR", raising=False)
+    assert client.get("/api/catalog").json()["ai"]["voice_model"] is False
+
+
+def test_password_gate(client, monkeypatch):
+    monkeypatch.setenv("DUB_PASSWORD", "ลับมาก")
+    assert client.get("/api/catalog").status_code == 401
+    assert client.get("/api/catalog", auth=("ใครก็ได้", "ผิด")).status_code == 401
+    assert client.get("/api/catalog", auth=("me", "ลับมาก")).status_code == 200
+    monkeypatch.delenv("DUB_PASSWORD")
+    assert client.get("/api/catalog").status_code == 200
+
+
+# ---------- package, CLI and public API ----------
+
+def test_python_api_process_array_and_file(tmp_path):
+    import dubstudio
+
+    out, sr = dubstudio.process((tone(0.5)[0], SR), character="giant", mood="angry")
+    assert sr == SR and out.shape[-1] >= SR * 0.5 - 1
+    src = tmp_path / "in.wav"
+    media.write(src, tone(0.5), SR)
+    dubstudio.process(src, tmp_path / "out.wav", atmosphere="radio")
+    assert (tmp_path / "out.wav").exists()
+    assert {"characters", "moods", "atmospheres"} <= dubstudio.presets().keys()
+    with pytest.raises(KeyError):
+        dubstudio.process(src, mood="nope")
+
+
+def test_cli_fx_single_and_batch(tmp_path, capsys):
+    from dubstudio.cli import main
+
+    a, b = tmp_path / "a.wav", tmp_path / "b.wav"
+    media.write(a, tone(0.3), SR)
+    media.write(b, tone(0.3), SR)
+    assert main(["fx", str(a), "-o", str(tmp_path / "one.wav"), "-c", "robot"]) == 0
+    assert (tmp_path / "one.wav").exists()
+    assert main(["fx", str(a), str(b), "-o", str(tmp_path / "batch"), "-c", "kid", "-a", "cave"]) == 0
+    assert sorted(p.name for p in (tmp_path / "batch").iterdir()) == ["a_kid.wav", "b_kid.wav"]
+    assert main(["fx", str(a), "-o", str(tmp_path / "x.wav"), "-m", "nope"]) == 1
+    assert "ผิดพลาด" in capsys.readouterr().err
+
+
+def test_v1_process_returns_wav(client):
+    r = client.post("/api/v1/process", files={"audio": ("t.wav", wav_bytes(0.5), "audio/wav")},
+                    data={"character": "giant", "atmosphere": "hall", "mix": "0.5"})
+    assert r.status_code == 200 and r.headers["content-type"] == "audio/wav"
+    audio, sr = sf.read(io.BytesIO(r.content))
+    assert sr == SR and len(audio) > SR * 0.5
+    bad = client.post("/api/v1/process", files={"audio": ("t.wav", wav_bytes(0.2), "audio/wav")}, data={"mood": "nope"})
+    assert bad.status_code == 400
+    assert "characters" in client.get("/api/v1/presets").json()
+    assert "/api/v1/process" in client.get("/openapi.json").json()["paths"]
+
+
+def test_bundled_ffmpeg_is_found():
+    assert media.ffmpeg_exe()
+
+
+def test_works_without_system_ffmpeg(tmp_path, monkeypatch):
+    monkeypatch.setattr(media.shutil, "which", lambda name: None)
+    exe = media.ffmpeg_exe()
+    assert exe and "imageio" in exe
+    src = tmp_path / "in.wav"
+    media.write(src, tone(1.0), SR)
+    media.to_wav(src, tmp_path / "out.wav", sr=16000)
+    assert media.duration(src) == pytest.approx(1.0, abs=0.05)

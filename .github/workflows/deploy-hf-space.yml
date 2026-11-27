@@ -1,0 +1,60 @@
+# Copies the app to a Hugging Face Space on every push to main, creating the
+# Space (private, Docker, free CPU) the first time.
+# Setup (once), in GitHub: Settings -> Secrets and variables -> Actions
+#   secret   HF_TOKEN      a Hugging Face "Write" token
+#   secret   DUB_PASSWORD  (optional) password the web page asks for
+#   variable HF_SPACE      your-hf-username/dub-studio
+name: Deploy to Hugging Face Space
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ vars.HF_SPACE != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Create the Space if needed and set its password
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_SPACE: ${{ vars.HF_SPACE }}
+          DUB_PASSWORD: ${{ secrets.DUB_PASSWORD }}
+        run: |
+          if [ -z "$HF_TOKEN" ]; then echo "::error::Add the HF_TOKEN repository secret first"; exit 1; fi
+          pip install -q "huggingface_hub>=0.24"
+          python - <<'PY'
+          import os
+          from huggingface_hub import HfApi
+          api = HfApi(token=os.environ["HF_TOKEN"])
+          space = os.environ["HF_SPACE"]
+          api.create_repo(space, repo_type="space", space_sdk="docker", private=True, exist_ok=True)
+          if os.environ.get("DUB_PASSWORD"):
+              api.add_space_secret(space, "DUB_PASSWORD", os.environ["DUB_PASSWORD"])
+          print("Space ready:", f"https://huggingface.co/spaces/{space}")
+          PY
+      - name: Push the app to the Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_SPACE: ${{ vars.HF_SPACE }}
+        run: |
+          set -euo pipefail
+          HF_USER="${HF_SPACE%%/*}"
+          git clone "https://${HF_USER}:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE}" space
+          # Replace the Space contents with this commit (the Space's README carries its config).
+          find space -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          git archive HEAD | tar -x -C space
+          rm -rf space/.github
+          cp deploy/hf-space/README.md space/README.md
+          cd space
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then echo "No changes"; exit 0; fi
+          git commit -m "Deploy ${GITHUB_SHA::7} from GitHub"
+          git push origin HEAD

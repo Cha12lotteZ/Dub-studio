@@ -1,5 +1,5 @@
 """Optional AI steps. Each one imports its library lazily, so the app still runs
-(with effects, recording and export) before requirements-ai.txt is installed.
+(with effects, recording and export) before the [ai] extra is installed.
 
 All of them run on CPU. Training happens on Colab/Kaggle (see notebooks/).
 """
@@ -21,7 +21,7 @@ def _need(module: str, pip_name: str):
     try:
         return __import__(module)
     except ImportError as e:
-        raise NotInstalled(f"ยังไม่ได้ติดตั้ง {pip_name} (pip install -r requirements-ai.txt)") from e
+        raise NotInstalled(f"ยังไม่ได้ติดตั้ง {pip_name} (pip install dubstudio[ai] หรือรัน install อีกครั้งแล้วเลือกติดตั้งส่วน AI)") from e
 
 
 def status() -> dict:
@@ -35,7 +35,7 @@ def status() -> dict:
         "transcribe": has("faster_whisper"),
         "separate": has("demucs"),
         "tts": has("transformers") and has("torch"),
-        "voice_model": has("rvc_python"),
+        "voice_model": voice_model_ready(),
     }
 
 
@@ -49,7 +49,16 @@ def _whisper():
 
 
 def transcribe(wav: Path, language: str = "th") -> list[dict]:
-    segments, _ = _whisper().transcribe(str(wav), language=language, vad_filter=True)
+    """wav must be 16 kHz mono (media.to_wav(..., sr=16000)). We decode it ourselves
+    so faster-whisper does not depend on the installed PyAV version."""
+    import soundfile as sf
+
+    audio, sr = sf.read(str(wav), dtype="float32")
+    if sr != 16000:
+        raise ValueError("transcribe() ต้องการไฟล์ 16 kHz")
+    if audio.ndim > 1:
+        audio = audio.mean(axis=1)
+    segments, _ = _whisper().transcribe(audio, language=language, vad_filter=True)
     return [{"start": round(s.start, 2), "end": round(s.end, 2), "text": s.text.strip()} for s in segments]
 
 
@@ -93,13 +102,22 @@ def tts(text: str, out: Path) -> Path:
 
 
 # ---------- Voice conversion (RVC model trained on Colab/Kaggle) ----------
+# Runs through Applio (https://github.com/IAHispano/Applio), installed separately in
+# its own Python environment, because RVC's dependencies clash with this app's.
+# Set DUB_APPLIO_DIR to the Applio folder; DUB_APPLIO_PYTHON overrides its Python.
 
-@lru_cache(maxsize=4)
-def _rvc(model_path: str, index_path: str | None):
-    rp = _need("rvc_python.infer", "rvc-python")
-    rvc = rp.infer.RVCInference(device="cpu")
-    rvc.load_model(model_path, index_path=index_path or "")
-    return rvc
+def _applio() -> tuple[str, Path]:
+    d = os.environ.get("DUB_APPLIO_DIR")
+    if not d or not (Path(d) / "core.py").exists():
+        raise NotInstalled("ยังไม่ได้ตั้งค่า Applio สำหรับแปลงเสียง (ดูหัวข้อ \"แปลงเสียงด้วยโมเดล\" ใน README)")
+    root = Path(d)
+    py = os.environ.get("DUB_APPLIO_PYTHON")
+    if not py:
+        for cand in (root / ".venv" / "bin" / "python", root / ".venv" / "Scripts" / "python.exe", root / "env" / "python.exe"):
+            if cand.exists():
+                py = str(cand)
+                break
+    return py or sys.executable, root
 
 
 def convert_voice(src: Path, out: Path, model_dir: Path, pitch: int = 0) -> Path:
@@ -107,11 +125,25 @@ def convert_voice(src: Path, out: Path, model_dir: Path, pitch: int = 0) -> Path
     if pth is None:
         raise FileNotFoundError(f"ไม่พบไฟล์ .pth ใน {model_dir.name}")
     idx = next(model_dir.glob("*.index"), None)
-    rvc = _rvc(str(pth), str(idx) if idx else None)
-    rvc.set_params(f0up_key=int(pitch), f0method="rmvpe")
-    rvc.infer_file(str(src), str(out))
+    py, root = _applio()
+    cmd = [py, "core.py", "infer", "--input-path", str(src.resolve()), "--output-path", str(out.resolve()),
+           "--pth-path", str(pth.resolve()), "--index-path", str(idx.resolve()) if idx else "",
+           "--pitch", str(int(max(-24, min(24, pitch)))), "--f0-method", "rmvpe", "--export-format", "WAV"]
+    proc = subprocess.run(cmd, cwd=root, capture_output=True, text=True)
+    if proc.returncode != 0 or not out.exists():
+        raise RuntimeError("แปลงเสียงไม่สำเร็จ: " + (proc.stderr or proc.stdout)[-600:])
     return out
 
 
+def voice_model_ready() -> bool:
+    try:
+        _applio()
+        return True
+    except NotInstalled:
+        return False
+
+
 def ffmpeg_ok() -> bool:
-    return shutil.which("ffmpeg") is not None
+    from .media import ffmpeg_exe
+
+    return ffmpeg_exe() is not None

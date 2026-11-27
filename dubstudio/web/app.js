@@ -31,14 +31,14 @@ function renderCatalog() {
   const ms = $("modelSelect");
   ms.innerHTML = `<option value="">ไม่ใช้โมเดล (ใช้เสียงที่อัดตรงๆ)</option>` +
     c.models.map((m) => `<option value="${m.id}">${m.name}</option>`).join("");
-  $("modelNote").textContent = !c.ai.voice_model ? "ยังไม่ได้ติดตั้งส่วนโมเดลเสียง (requirements-ai.txt) ตอนนี้ใช้ได้เฉพาะเอฟเฟกต์"
+  $("modelNote").textContent = !c.ai.voice_model ? "ยังไม่ได้ตั้งค่า Applio สำหรับแปลงเสียง (ดู README) ตอนนี้ใช้ได้เฉพาะเอฟเฟกต์"
     : c.models.length ? "โมเดลจะเปลี่ยนเนื้อเสียง แล้วตัวละคร อารมณ์ บรรยากาศจะปรับต่อ" : "ยังไม่มีโมเดล อัปโหลดได้ที่ช่อง \"สอนเสียงของคุณ\"";
   $("datasetNote").textContent = `เก็บไว้แล้ว ${c.dataset.takes} เทค (${c.dataset.minutes} นาที) แนะนำอย่างน้อย 10 นาทีสำหรับเทรนรอบแรก`;
   $("separateBtn").disabled = !c.ai.separate;
   $("transcribeBtn").disabled = !c.ai.transcribe;
   $("ttsBtn").disabled = !c.ai.tts;
   const missing = [!c.ai.separate && "แยกเสียง", !c.ai.transcribe && "ถอดบท", !c.ai.tts && "พิมพ์บทให้พูด"].filter(Boolean);
-  $("aiStatus").textContent = missing.length ? `ยังใช้ไม่ได้: ${missing.join(", ")} (ติดตั้ง requirements-ai.txt)` : "";
+  $("aiStatus").textContent = missing.length ? `ยังใช้ไม่ได้: ${missing.join(", ")} (รัน install อีกครั้งแล้วเลือกติดตั้งส่วน AI)` : "";
   if (!c.ai.ffmpeg) $("aiStatus").textContent = "ไม่พบ ffmpeg ในเครื่อง กรุณาติดตั้งก่อน";
 }
 
