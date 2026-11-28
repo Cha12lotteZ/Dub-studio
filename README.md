@@ -15,16 +15,16 @@
 | ที่ไหน | เหมาะกับ | ข้อจำกัด |
 |---|---|---|
 | [Google Colab](https://colab.research.google.com/github/Cha12lotteZ/dub-studio/blob/main/notebooks/dub_studio_colab.ipynb) | ใช้ครบทุกอย่าง รวมแปลงเป็นเสียงคุณบน GPU ฟรี | เปิดโน้ตบุ๊กใหม่ทุกครั้ง ปิดเองเมื่อไม่ใช้งาน |
-| Hugging Face Spaces | ลิงก์เว็บถาวร เปิดจากมือถือหรือคอมเครื่องไหนก็ได้ | CPU ฟรี จึงช้ากว่า ยังไม่มีการแปลงเสียงด้วยโมเดล งานหายเมื่อ Space รีสตาร์ท |
+| Hugging Face Spaces | ลิงก์เว็บถาวร เปิดจากมือถือหรือคอมเครื่องไหนก็ได้ | **ต้องสมัคร [Hugging Face PRO](https://huggingface.co/pro)** (บัญชีฟรีสร้าง Space แบบ Docker ไม่ได้) ใช้ CPU จึงช้ากว่า ยังไม่มีการแปลงเสียงด้วยโมเดล งานหายเมื่อ Space รีสตาร์ท |
 
-### ตั้งค่า Hugging Face Spaces (ครั้งเดียว)
+### ตั้งค่า Hugging Face Spaces (ครั้งเดียว ต้องเป็น PRO)
 
-1. สมัครบัญชีที่ [huggingface.co/join](https://huggingface.co/join)
+1. สมัครบัญชีที่ [huggingface.co/join](https://huggingface.co/join) และสมัคร [PRO](https://huggingface.co/pro)
 2. สร้าง token แบบ **Write** ที่ [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)
 3. ใน GitHub repo นี้ ไปที่ **Settings → Secrets and variables → Actions**
    - แท็บ Secrets: เพิ่ม `HF_TOKEN` = token จากข้อ 2 และ `DUB_PASSWORD` = รหัสผ่านที่เว็บจะถาม (ชื่อผู้ใช้ใส่อะไรก็ได้)
    - (ไม่บังคับ) แท็บ Variables: `HF_SPACE` ถ้าต้องการชื่อ Space อื่น ค่าเริ่มต้นคือ `ชื่อผู้ใช้ของคุณ/dub-studio`
-4. แท็บ **Actions → Deploy to Hugging Face Space → Run workflow** ครั้งแรกจะสร้าง Space แบบ Private ให้เอง หลังจากนั้นทุกครั้งที่มีโค้ดใหม่เข้า `main` จะส่งขึ้น Space ให้อัตโนมัติ (build ครั้งแรกประมาณ 15–20 นาที)
+4. แท็บ **Actions → Deploy to Hugging Face Space → Run workflow** ครั้งแรกจะสร้าง Space แบบ Private ให้เอง เมื่อมีโค้ดใหม่ให้กด Run workflow อีกครั้ง (build ครั้งแรกประมาณ 15–20 นาที)
 
 ถ้าเปลี่ยน Space เป็น Public โดยไม่ตั้ง `DUB_PASSWORD` ใครมีลิงก์ก็เห็นโปรเจกต์และเสียงที่เก็บไว้ทั้งหมด
 
