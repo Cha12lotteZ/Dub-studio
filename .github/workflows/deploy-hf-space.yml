@@ -1,5 +1,6 @@
-# Copies the app to a Hugging Face Space on every push to main, creating the
-# Space (private, Docker, free CPU) the first time.
+# Copies the app to a Hugging Face Space, creating the Space (private, Docker)
+# the first time. Run it by hand from the Actions tab. Docker Spaces need a
+# Hugging Face PRO subscription (free accounts get "402 Payment Required").
 # Setup (once), in GitHub: Settings -> Secrets and variables -> Actions
 #   secret   HF_TOKEN      a Hugging Face "Write" token
 #   secret   DUB_PASSWORD  (optional) password the web page asks for
@@ -7,8 +8,6 @@
 name: Deploy to Hugging Face Space
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
